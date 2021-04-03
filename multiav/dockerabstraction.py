@@ -179,6 +179,7 @@ class DockerMachine():
 
     def _list_current_images(self):
         cmd = "docker images --format \"{{.Repository}}\" malice/*:current"
+        print(f'--------- _list_current_images: {cmd}')
         output = self.execute_command(cmd)
         output = output.replace("\"", "")
         images = output.split("\n")
@@ -230,6 +231,7 @@ class DockerMachine():
     def create_no_internet_network(self):
         network_address = self.cfg_parser.gets("MULTIAV", "DOCKER_NETWORK_NO_INTERNET", "10.127.139.0/24")
         cmd = "docker network create --driver bridge --internal --subnet={1} {0}".format(self.DOCKER_NETWORK_NO_INTERNET_NAME, network_address)
+        print(f"--------- create_no_internet_network: {cmd}")
         self.execute_command(cmd)
 
         return self.does_no_internet_network_exist()
@@ -237,6 +239,7 @@ class DockerMachine():
     def create_internet_network(self):
         network_address = self.cfg_parser.gets("MULTIAV", "DOCKER_NETWORK_INTERNET", "10.231.101.0/24")
         cmd = "docker network create --driver bridge --subnet={1} {0}".format(self.DOCKER_NETWORK_INTERNET_NAME, network_address)
+        print(f"--------- create_internet_network: {cmd}")
         output = self.execute_command(cmd)
 
         return not "Error" in output
@@ -274,6 +277,7 @@ class DockerMachine():
             self.containers = [c for c in self.containers if c.id not in container_ids]
 
             cmd = "docker stop {0}".format(" ".join(container_ids))
+            print(f"--------- remove_containers: {cmd}")
             output = self.execute_command(cmd, call_super=False)
             return not "error" in output
     
@@ -320,6 +324,7 @@ class DockerMachine():
     def load_update_file(self, update_file, engine_name):
         def _load_update_file_internal(resolve, reject, update_file, machine_id, engine_name):
             try:
+                print(f"--------- load_update_file: {cmd}")
                 output = self.execute_command("docker load -i {0}".format(update_file))
                 if "Error" in output:
                     raise Exception("docker load error: {0}".format(output))
@@ -358,6 +363,7 @@ class DockerMachine():
             try:
                 print("saving update images as {0} to disk now...".format(output_file))
                 images = " ".join(["malice/{0}:current".format(engine_name) for engine_name in engine_names])
+                print(f"--------- export_images: {cmd}")
                 output = self.execute_command("docker save {1} -o {0}".format(output_file, images), shell=True)
 
                 if "error" in output.lower():
@@ -780,6 +786,7 @@ class DockerContainer():
         else:
             self.id = "multiav-{0}-{1}".format(engine.name, uuid.uuid1()).lower()
         
+        print(f"---- DockerContainer: {self.id}")
         self.machine = machine
         self.engine = engine
         self.scans = []
@@ -856,6 +863,7 @@ class DockerContainer():
                 else:
                     cmd = cmd.replace("$BUILDARGS$", "".join(map(lambda kv: " --build-arg " + kv[0] + "=" + kv[1], self.engine.container_build_params.items())))
 
+                print(f"--------- _pull: {cmd}")
                 output = self.machine.execute_command(cmd)
 
                 if not "Successfully built" in output:
@@ -866,7 +874,8 @@ class DockerContainer():
             else:
                 print("pulling docker container malice/{0}".format(self.engine.container_name))
                 cmd = "docker pull malice/{0}".format(self.engine.container_name)
-
+                    
+                print(f"--------- _pull: {cmd}")
                 output = self.machine.execute_command(cmd)
 
                 if not ("Status: Downloaded newer image" in output or "Status: Image is up to date" in output):
@@ -882,6 +891,7 @@ class DockerContainer():
                 for additional_file in self.engine.container_additional_files:
                     additional_file_name = os.path.basename(additional_file)
                     cmd = "docker-machine scp {0} {1}:{2}/{3}".format(additional_file, self.machine.id, dest_dir, additional_file_name)
+                    print(f"--------- _pull: {cmd}")
                     output = self.machine.execute_command(cmd, call_super = True)
 
                     # check copy success
@@ -942,12 +952,23 @@ class DockerContainer():
     def get_run_web_command(self):
         network_name = self.network_internet_name if self.engine.container_requires_internet else self.network_no_internet_name
         cmd = "docker run -d --name {0} --net {1}$DOCKERPARAMS$ --rm malice/{2}:current$CMDARGS$ web".format(self.id, network_name, self.engine.container_name)
-        return self._replace_run_command_variables(cmd)
+        # return self._replace_run_command_variables(cmd)
+        cmd2 = self._replace_run_command_variables(cmd)
+        print(cmd2) #!#!
+        print("-----------------------")
+        return cmd2
 
     def get_run_and_scan_command(self, file_to_scan):
         network_name = self.network_internet_name if self.engine.container_requires_internet else self.network_no_internet_name
-        cmd = "docker run --name {0} --net {1}$DOCKERPARAMS$ --rm -v /tmp/malware:/malware:ro malice/{2}:current$CMDARGS$ {3}".format(self.id, network_name, self.engine.container_name, file_to_scan)
-        return self._replace_run_command_variables(cmd)
+        if self.engine.container_name_new != None:
+            cmd = "docker run --name {0} --net {1}$DOCKERPARAMS$ --rm -v /tmp/malware:/malware:ro {2}$CMDARGS$ {3}".format(self.id, network_name, self.engine.container_name_new, file_to_scan)
+        else:
+            cmd = "docker run --name {0} --net {1}$DOCKERPARAMS$ --rm -v /tmp/malware:/malware:ro malice/{2}:current$CMDARGS$ {3}".format(self.id, network_name, self.engine.container_name, file_to_scan)
+        # return self._replace_run_command_variables(cmd)
+        cmd2 = self._replace_run_command_variables(cmd)
+        print(cmd2) #!#!
+        print("-----------------------")
+        return cmd2
 
     def run(self):
         with self.machine._images_lock[self.engine.name].reader_lock:
@@ -955,6 +976,7 @@ class DockerContainer():
 
             # start
             try:
+                print(f"--------- run: {cmd}")
                 output = self.machine.execute_command(cmd)
 
                 if "Error" in output:
@@ -975,6 +997,7 @@ class DockerContainer():
             return True
         
         cmd = "docker rm {0}".format(self.id)
+        print(f"--------- remove: {cmd}")
         output = self.machine.execute_command(cmd)
 
         return self.engine.container_name in output
@@ -1061,6 +1084,7 @@ class DockerContainer():
     
     def remove_image(self, tag):
         cmd = "docker rmi malice/{0}:{1}".format(self.engine.container_name, tag)
+        print(f"--------- remove_image: {cmd}")
         output = self.machine.execute_command(cmd)
 
         if "Error" in output and not "No such image" in output:
@@ -1071,6 +1095,7 @@ class DockerContainer():
 
     def addtag(self, current_tag, new_tag):
         cmd = "docker tag malice/{0}:{1} malice/{0}:{2}".format(self.engine.container_name, current_tag, new_tag)
+        print(f"--------- addtag: {cmd}")
         output = self.machine.execute_command(cmd)
 
         if "Error" in output and not "No such image" in output:
@@ -1123,6 +1148,7 @@ class DockerContainer():
 
                     if self.engine.container_name in output:'''
                     cmd = "docker rmi malice/{0}:updated malice/{0}:old".format(self.engine.container_name)
+                    print(f"--------- _update: {cmd}")
                     output = self.machine.execute_command(cmd)
                 except Exception as e:
                     print("[{0}] docker images / rmi exception {1}".format(self.engine.container_name, e))
@@ -1131,6 +1157,7 @@ class DockerContainer():
                 # run new container to do the update
                 try:
                     cmd = "docker run --name {0} malice/{1}:latest update".format(self.id, self.engine.container_name)
+                    print(f"--------- _update: {cmd}")
                     output = self.machine.execute_command(cmd)
                 except Exception as e:
                     print("[{0}] Docker run update command exception {1}".format(self.engine.container_name, e))
@@ -1140,6 +1167,7 @@ class DockerContainer():
                 # save updated container as new image with tag updated
                 try:
                     cmd = "docker commit {0} malice/{1}:updated".format(self.id, self.engine.container_name)
+                    print(f"--------- _update: {cmd}")
                     output = self.machine.execute_command(cmd)
                 except Exception as e:
                     print("[{0}] Docker commit exception {1}".format(self.engine.container_name, e))

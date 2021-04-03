@@ -120,6 +120,7 @@ class CDockerAvScanner():
     self.speed = AV_SPEED.SLOW
     self.plugin_type = None
     self.container_name = None
+    self.container_name_new = None  #!#!
     self.scan_timeout = int(self.cfg_parser.gets("MULTIAV", "SCAN_TIMEOUT", 120))
     self.container = None
     self.container_requires_internet = int(self.cfg_parser.gets(self.name, "ENABLE_INTERNET_ACCESS", 0)) == 1
@@ -152,6 +153,7 @@ class CDockerAvScanner():
           # run and scan command only, container is removed post scan by docker
           run_cmd = self.container.get_run_and_scan_command(filename)
           response = self.container.machine.execute_command(run_cmd)
+          print(f"----- response:{response}")
         else:
           '''
           e.g.
@@ -172,6 +174,7 @@ class CDockerAvScanner():
           response_json = response_json[response_json.find("{"):]
         if response_json[-1] != "}":
           response_json = response_json[:response_json.rfind("}")+1]
+        print(f"----- response_json:{response_json}")
         
         # dont try to deserialize if empty result
         if len(response_json) < len("{\"0\":0}"):
@@ -337,6 +340,7 @@ class CAvgMalicePlugin(CDockerAvScanner):
     self.speed = AV_SPEED.ULTRA
     self.plugin_type = PLUGIN_TYPE.AV
     self.container_name = "avg"
+    self.container_name_new = "a76d19563649"  #!#!
 
 #-----------------------------------------------------------------------
 class CBitDefenderMalicePlugin(CDockerAvScanner):
